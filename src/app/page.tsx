@@ -1,17 +1,17 @@
 'use client';
 
 import ForceExperimentChart from "@/app/components/ForceExperimentChart";
-import ARCH from "@/data/ARCH.json";
-import CN from "@/data/CN.json";
-import MFON from "@/data/MFON.json";
-import MIN from "@/data/MIN.json";
-import MEN from "@/data/MEN.json";
-import MON from "@/data/MON.json";
-import OEN from "@/data/OEN.json";
-import OFON from "@/data/OFON.json";
-import OIN from "@/data/OIN.json";
-import PPN from "@/data/PPN.json";
-import PPON from "@/data/PPON.json";
+import ARCH from "@/app/data/ARCH.json";
+import CN from "@/app/data/CN.json";
+import MFON from "@/app/data/MFON.json";
+import MIN from "@/app/data/MIN.json";
+import MEN from "@/app/data/MEN.json";
+import MON from "@/app/data/MON.json";
+import OEN from "@/app/data/OEN.json";
+import OFON from "@/app/data/OFON.json";
+import OIN from "@/app/data/OIN.json";
+import PPN from "@/app/data/PPN.json";
+import PPON from "@/app/data/PPON.json";
 import { ChartData} from "@/app/components/ForceExperimentChart_types";
 export default  function Home() {
 

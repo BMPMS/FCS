@@ -46,6 +46,7 @@ export const drawForce = (
     links: ChartLink[],
     simulation:  d3.Simulation<d3.SimulationNodeDatum, undefined>) => {
 
+    console.log(nodes.map((m) => m.node));
     // stop radius while you append shapes
     simulation.stop();
 
@@ -96,12 +97,13 @@ export const drawForce = (
 
     // reset the simulation
     simulation.nodes([]);
+    simulation.nodes(nodes);
     const linkForce = simulation.force("link");
-    if (linkForce && "links" in linkForce) {
+    if(linkForce){
         (linkForce as d3.ForceLink<ChartNode,ChartLink>).links([]);
         (linkForce as d3.ForceLink<ChartNode,ChartLink>).links(links);
     }
-
+;
     // reset the simulation
     simulation.nodes(nodes);
     simulation.alpha(1).restart();
