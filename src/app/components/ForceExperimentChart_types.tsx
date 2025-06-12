@@ -1,8 +1,16 @@
+export interface DataNode {
+    node:string;
+    type: string;
+    class: string;
+    desc: string;
+    nodeDepth?: number;
+}
 export interface ChartNode extends d3.SimulationNodeDatum {
     node:string;
     type: string;
     class: string;
     desc: string;
+    nodeDepth: number;
 }
 
 export interface ChartLink extends d3.SimulationLinkDatum<ChartNode>{
@@ -30,7 +38,7 @@ type Layer = {
     layer: number;
     network: string;
 }
-type Architecture = {
+export type Architecture = {
     arch_id: number;
     arch_name: string;
     arch_num_layers: number;
@@ -50,4 +58,5 @@ export type ChartData = {
 export interface ForceExperimentChartProps {
     chartData: ChartData;
     containerClass: string;
+    direction: string;
 }
