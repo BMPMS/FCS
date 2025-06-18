@@ -27,8 +27,36 @@ const ForceExperimentChart: FC<ForceExperimentChartProps> = ({ containerClass,ch
         if (!containerNode) return;
         const {  clientHeight: svgHeight, clientWidth: svgWidth } = containerNode;
 
+        const arrowFill = "#A0A0A0";
         baseSvg.attr('width', svgWidth)
             .attr('height', svgHeight);
+
+        baseSvg.select(`#arrowStart${containerClass}`)
+             .attr("viewBox", "0 -5 10 10")
+             .attr("refX", 5)
+             .attr("markerWidth", 6)
+             .attr("markerHeight", 6)
+             .attr("orient", "auto");
+
+         baseSvg.select(`#arrowPathStart`)
+             .attr("fill", arrowFill)
+             .attr("stroke-linecap", "round")
+             .attr("stroke-linejoin", "round")
+             .attr("d", "M9,-4L1,0L9,4");
+
+        baseSvg.select(`#arrowEnd${containerClass}`)
+             .attr("viewBox", "0 -5 10 10")
+             .attr("refX", 8)
+             .attr("markerWidth", 8)
+             .attr("markerHeight", 8)
+             .attr("orient", "auto");
+
+         baseSvg.select(`#arrowPathEnd`)
+             .attr("fill", arrowFill)
+             .attr("stroke-linecap", "round")
+             .attr("stroke-linejoin", "round")
+             .attr("d", "M1, -4L9,0L1,4");
+
 
          const zoom = d3
              .zoom<SVGSVGElement, unknown>()
@@ -74,9 +102,11 @@ const ForceExperimentChart: FC<ForceExperimentChartProps> = ({ containerClass,ch
 
          const radioButtonChange = (newNetwork: string) => {
              if(newNetwork === "All"){
-                 drawForce(svg,[], [], simulation);
-                 drawGroupTree(baseSvg, currentRadioGroup,chartData,svgWidth,svgHeight, false);
+                 drawForce(svg,[], [], simulation,direction);
+                 drawGroupTree(baseSvg, currentRadioGroup,chartData,svgWidth,svgHeight, false, direction,containerClass);
              } else {
+                 drawGroupTree(baseSvg, currentRadioGroup,chartData,svgWidth,svgHeight, true, direction,containerClass);
+
                  currentNetworkData = chartData.networks.find((f) => f.id === newNetwork);
                  if(currentNetworkData){
                      currentNetwork = newNetwork;
@@ -85,7 +115,7 @@ const ForceExperimentChart: FC<ForceExperimentChartProps> = ({ containerClass,ch
                      if(depthExtent[0] !== undefined && depthExtent[1] !== undefined){
                          positionScale.domain(depthExtent);
                      }
-                     drawForce(svg,nodes, links, simulation);
+                     drawForce(svg,nodes, links, simulation,direction);
                      zoomToBounds(nodes, baseSvg,svgWidth,svgHeight,zoom)
                  }
              }
@@ -99,7 +129,7 @@ const ForceExperimentChart: FC<ForceExperimentChartProps> = ({ containerClass,ch
                     currentRadioGroup = groupFind;
                     networks = currentRadioGroup.layers.map((m) => m.network);
                     currentNetwork = networks[0];
-                    drawGroupTree(baseSvg,currentRadioGroup,chartData,svgWidth,svgHeight,true)
+                    drawGroupTree(baseSvg,currentRadioGroup,chartData,svgWidth,svgHeight,true, direction,containerClass)
                     drawRadioButtons(svg, networks,currentNetwork,radioButtonChange);
                     radioButtonChange(currentNetwork);
                 }
@@ -130,18 +160,17 @@ const ForceExperimentChart: FC<ForceExperimentChartProps> = ({ containerClass,ch
              .force("x", d3[forcePosition]<ChartNode>((d) => sideMargin + positionScale(d.nodeDepth)).strength(1))
              .force("y", d3[forceOpposite](oppositeCentre).strength(0.05))
              .force("link", d3.forceLink<ChartNode,ChartLink>().id((d) => d.node).strength(0))
-             .force("collide",d3.forceCollide().radius(CIRCLE_RADIUS * 1.2))
+             .force("collide",d3.forceCollide().radius(CIRCLE_RADIUS * 1.5))
              .force("repel", d3.forceManyBody().strength(-50));
 
          if(currentNetworkData){
-
            const {nodes,links} = currentNetworkData.data;
            const depthExtent = d3.extent(nodes, (d) => d.nodeDepth);
            if(depthExtent[0] !== undefined && depthExtent[1] !== undefined){
                positionScale.domain(depthExtent);
            }
-           drawGroupTree(baseSvg,currentRadioGroup,chartData,svgWidth,svgHeight,true)
-           drawForce(svg,nodes, links, simulation);
+           drawGroupTree(baseSvg,currentRadioGroup,chartData,svgWidth,svgHeight,true,direction,containerClass)
+           drawForce(svg,nodes, links, simulation,direction);
            zoomToBounds(nodes, baseSvg,svgWidth,svgHeight,zoom);
          }
 
@@ -152,6 +181,14 @@ const ForceExperimentChart: FC<ForceExperimentChartProps> = ({ containerClass,ch
 
     return (
         <svg className={"noselect"} ref={ref}>
+            <defs>
+                <marker id={`arrowStart${containerClass}`}>
+                    <path id={"arrowPathStart"}/>
+                </marker>
+                <marker id={`arrowEnd${containerClass}`}>
+                    <path id={"arrowPathEnd"}/>
+                </marker>
+            </defs>
             <g className={"chartSvg"}>
                 <g className={"linkGroup"}/>
                 <g className={"nodeGroup"}/>

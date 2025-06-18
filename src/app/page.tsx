@@ -78,7 +78,7 @@ export default  function Home() {
   return (
       <>
           <div>
-           <div className="items-start h-[60px] w-full bg-gray-700 flex justify-between  p-5">
+           <div className="items-start h-[60px] w-full bg-gray-300 flex justify-between  p-5">
                <select id="chooseArchitecture"></select>
                <div className=" w-[200px]">
                    <input

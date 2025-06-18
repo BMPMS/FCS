@@ -7,10 +7,9 @@
 }
 
 :root {
-  --background: #24242e;
-  --foreground: #f1f0ff;
+  --background:  #f1f0ff;
+  --foreground:#24242e;
   --font-figtree: 'Figtree', sans-serif;
-  --font-merriweather: 'Merriweather', serif;
 }
 
 /* Hide the Next.js development badge */
@@ -18,15 +17,15 @@
   display: none !important;
 }
 
-@media (prefers-color-scheme: dark) {
+@media (prefers-color-scheme: light) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #ededed;
+    --foreground:#0a0a0a;
   }
 }
 
 .titleFont {
-  font-family: var(--font-merriweather), sans-serif;
+  font-family: var(--font-figtree), sans-serif;
 }
 
 body {
