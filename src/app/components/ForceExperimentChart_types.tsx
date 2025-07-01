@@ -1,17 +1,49 @@
+import {ScaleLinear} from "d3";
+import * as d3 from "d3";
+
 export interface DataNode {
     node:string;
     type: string;
     class: string;
     desc: string;
+    id?: string;
     nodeDepth?: number;
+    extraX?: number;
+    extraY?:number;
 }
+
+export interface HierarchyNode extends d3.SimulationNodeDatum  {
+    name: string;
+    type: string;
+    label: string;
+    value: number;
+    pathOnly?: boolean;
+    depth?: number;
+    data?: ChartNode;
+    children?:HierarchyNode[];
+}
+
 export interface ChartNode extends d3.SimulationNodeDatum {
+    id: string;
     node:string;
     type: string;
     class: string;
     desc: string;
     nodeDepth: number;
+    extraX: number;
+    extraY: number;
+    network?: string;
+    oppositePos?:number;
+    bounds?: {x: number, widthOrHeight: number, opposite: number, top: number};
+    treePositionScale?:  ScaleLinear<number, number, never>;
 }
+
+export interface HierarchyLink extends d3.SimulationLinkDatum<d3.HierarchyNode<HierarchyNode>>{
+    source: string | d3.HierarchyNode<HierarchyNode>;
+    target: string | d3.HierarchyNode<HierarchyNode>;
+    type: string;
+}
+
 
 export interface ChartLink extends d3.SimulationLinkDatum<ChartNode>{
     source: string | ChartNode;

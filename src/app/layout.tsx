@@ -19,6 +19,8 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+    console.log('App rendering');
+    debugger;
   return (
     <html lang="en">
       <body
