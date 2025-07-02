@@ -46,7 +46,6 @@ const ForceExperimentChart: FC<ForceExperimentChartProps> = ({ containerClass,ch
             .attr("transform",`translate(120,${svgHeight - 35})`);
 
         drawLegend(baseSvg);
-        debugger;
 
 
         // network radio group not visible for non-linear

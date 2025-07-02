@@ -1222,14 +1222,9 @@ export const drawNonLinear = (
             .join((group) => {
                 const enter = group.append("g").attr("class", "nodesGroup");
                 enter.append("path").attr("class","surroundingPath");
-                enter.append("path").attr("class","buttonItems nodeButtonArc");
-                enter.append("circle").attr("class", "buttonItems nodeButton expandCircle");
-                enter.append("text").attr("class", "buttonItems nodeButton fa fa-solid expandIcon");
                 enter.append("circle").attr("class", "nodeBackgroundCircle");
                 enter.append("circle").attr("class", "nodeCircle");
                 enter.append("text").attr("class", "fa fa-strong nodeCircleIcon");
-                enter.append("circle").attr("class", "buttonItems nodeButton collapseCircle");
-                enter.append("text").attr("class", "buttonItems nodeButton fa fa-solid collapseIcon");
                 enter.append("rect").attr("class", "nodeLabelItem nodeLabelRect");
                 enter.append("text").attr("class", "nodeLabelItem nodeLabel");
                 return enter;
@@ -1237,158 +1232,7 @@ export const drawNonLinear = (
 
         const maxDepth = 3;
 
-        const getAngleForArcLength = (radius: number, requiredLength: number) => {
-            return (requiredLength / (2 * Math.PI *radius)) * (Math.PI * 2); // returns angle in radians
-        }
 
-        const getCentroid = (position: string, d: d3.HierarchyNode<HierarchyNode>) => {
-            let angle = 0;
-            if(position !== "centre"){
-                angle = getAngleForArcLength(radiusScale(d.data.value),buttonRadius);
-                if(position === "left"){
-                    angle = -angle;
-                }
-            }
-            const arc = d3.arc<undefined>()
-                .innerRadius(radiusScale(d.data.value) + buttonRadius + 2 )
-                .outerRadius(radiusScale(d.data.value) + buttonRadius + 2)
-                .startAngle(angle)
-                .endAngle(angle);
-            return arc.centroid(undefined);
-        }
-        const buttonRadius = radiusRange[0];
-        const getArcPath = (d: d3.HierarchyNode<HierarchyNode>) => d3.arc<undefined>()
-            .innerRadius(radiusScale(d.data.value))
-            .outerRadius(radiusScale(d.data.value) + (buttonRadius * 2) + 4)
-            .startAngle(  -getAngleForArcLength(radiusScale(d.data.value),buttonRadius * 2))
-            .endAngle(getAngleForArcLength(radiusScale(d.data.value), buttonRadius * 2))(undefined)
-
-        nodesGroup.select(".nodeButtonArc")
-            .attr("opacity",0)
-            .attr("d", (d) => {
-                if(d.depth < maxDepth) return getArcPath(d);
-                return "M0,0L0,0Z";
-            })
-            .attr("fill","transparent")
-
-        nodesGroup
-            .select(".expandCircle")
-            .attr("opacity",0)
-            .attr("cursor", "pointer")
-            .attr("r", (d) => d.depth === maxDepth ? 0 : buttonRadius)
-            .attr("fill", COLORS.midblue)
-            .attr("cx", (d) => getCentroid(d.depth === 0 ? "centre" : "left", d)[0])
-            .attr("cy", (d) => getCentroid(d.depth === 0 ? "centre" :"left", d)[1])
-            .on("click", (event, d) => {
-                const childNodes = d.children;
-                if(childNodes){
-                    let depthExtent = [];
-                    const depthScale = d3.scaleLinear().range([0,70]).domain([1,2])
-                    if(d.data.type === "network"){
-                        depthExtent = d3.extent(childNodes, (d) => d.data.depth);
-                        if(depthExtent[0] !== undefined && depthExtent[1] !== undefined){
-                            depthScale.domain(depthExtent);
-                        }
-                    }
-                    childNodes.forEach((c) => {
-                        c.data.pathOnly = false;
-                        c.x = (d.x || 0) + (c.data.type === "depth" && c.data.depth ? depthScale(c.data.depth) : 0);
-                        c.y = d.y;
-                        currentNodes.push(c);
-                    })
-                    if(d.depth === 2){
-                        d.data.pathOnly = true;
-                        d.fx = undefined;
-                        d.fy = undefined;
-                        d.x = 0;
-                        d.y = 0;
-                    } else {
-                        currentNodes = currentNodes.filter((f) => f.data.name !== d.data.name);
-                    }
-
-                    drawHierarchyForce(currentNodes);
-                }
-            })
-
-        nodesGroup
-            .select(".expandIcon")
-            .attr("opacity",0)
-            .attr("pointer-events", "none")
-            .attr("fill", "white")
-            .attr("text-anchor", "middle")
-            .style("dominant-baseline","middle")
-            .style("font-size", buttonRadius + 2)
-            .attr("x", (d) => getCentroid(d.depth === 0 ? "centre" :"left", d)[0])
-            .attr("y", (d) => getCentroid(d.depth === 0 ? "centre" :"left", d)[1])
-            .text((d) => d.depth === maxDepth ? "" : NODETYPE_ICONS.expand);
-
-        nodesGroup
-            .select(".collapseCircle")
-              .attr("opacity",0)
-            .attr("cursor", "pointer")
-            .attr("r", (d) => d.depth === 0 ? 0 : buttonRadius)
-            .attr("fill", COLORS.midblue)
-            .attr("cx", (d) => d.depth === maxDepth ? radiusScale(d.data.value) * 1.5 : getCentroid("right", d)[0])
-            .attr("cy", (d) => d.depth === maxDepth ? 0 :getCentroid("right", d)[1])
-            .on("click", (event, d) => {
-                const parentNode = d.parent;
-                if(parentNode){
-                    currentNodes = currentNodes.filter((f) =>  !(f.depth === d.depth && f.parent?.data.name === parentNode.data.name));
-                    currentNodes.push(parentNode)
-                    drawHierarchyForce(currentNodes);
-                }
-            })
-
-        nodesGroup
-            .select(".collapseIcon")
-               .attr("opacity",0)
-            .attr("pointer-events", "none")
-            .attr("fill", "white")
-            .attr("text-anchor", "middle")
-            .style("dominant-baseline","middle")
-            .style("font-size", buttonRadius + 2)
-            .attr("x", (d) => d.depth === maxDepth ? radiusScale(d.data.value) * 1.5 :getCentroid("right", d)[0])
-            .attr("y", (d) => d.depth === maxDepth ? 0 :getCentroid("right", d)[1])
-            .text((d) => d.depth === 0 ? "" : NODETYPE_ICONS.collapse)
-
-        nodesGroup
-            .on("mouseover",(event) => {
-                const fromElement = event.fromElement || event.relatedTarget;
-                if(fromElement ){
-                    const className = fromElement.className?.animVal || "";
-                    const withinNode = className.includes("buttonItems") || className.includes("nodeCircle") ;
-                    svg.selectAll(".buttonItems").attr("opacity",0);
-                    d3.select(event.currentTarget)
-                        .selectAll(".buttonItems")
-                        .transition()
-                        .duration(withinNode ? 0 : 100)
-                        .attr("opacity",1);
-                }
-            })
-            .on("mouseout", (event) => {
-                const toElement = event.toElement || event.relatedTarget;
-                if(toElement){
-                    const className = toElement.className?.animVal || "";
-                    const withinNode = className.includes("buttonItems");
-                    if(!withinNode){
-                        svg.selectAll(".buttonItems").attr("opacity",0);
-                    }
-                }
-            })
-            .on("click", (event, d) => {
-                if(selectedNode === d.data.name){
-                    selectedNode = "";
-                    svg.selectAll(".nodesGroup").attr("opacity",1);
-                } else {
-                    selectedNode = d.data.name;
-                    if(allChildNodes){
-                        const allLinks = getHierarchyLinks(allChildNodes);
-                        const chain = getHierarchyNodeChain(d.data.name,allChildNodes,allLinks);
-                        debugger;
-                    }
-                }
-
-            })
 
         nodesGroup.select(".nodeCircle")
             .attr("display", (d) => d.data.pathOnly ? "none" : "block")
@@ -1397,7 +1241,54 @@ export const drawNonLinear = (
             .attr("stroke-width",(d) => d.data.data ? 0 : 1.5)
             .attr("stroke","#484848")
             .attr("stroke-opacity", (d) => (4 - d.depth)/10)
-            .attr("r",(d) => radiusScale(d.data.value));
+            .attr("r",(d) => radiusScale(d.data.value))
+            .on("click", (event, d) => {
+                if(d.depth === maxDepth){
+                    console.log('highlight')
+                    //  if(selectedNode === d.data.name){
+                    //      selectedNode = "";
+                    //      svg.selectAll(".nodesGroup").attr("opacity",1);
+                    //  } else {
+                    //      selectedNode = d.data.name;
+                    //     if(allChildNodes){
+                    //         const allLinks = getHierarchyLinks(allChildNodes);
+                    //         const chain = getHierarchyNodeChain(d.data.name,allChildNodes,allLinks);
+
+                    //     }
+                    // }
+                } else {
+                    const childNodes = d.children;
+                    if(childNodes){
+                        let depthExtent = [];
+                        const depthScale = d3.scaleLinear().range([0,70]).domain([1,2])
+                        if(d.data.type === "network"){
+                            depthExtent = d3.extent(childNodes, (d) => d.data.depth);
+                            if(depthExtent[0] !== undefined && depthExtent[1] !== undefined){
+                                depthScale.domain(depthExtent);
+                            }
+                        }
+                        childNodes.forEach((c) => {
+                            c.data.pathOnly = false;
+                            c.x = (d.x || 0) + (c.data.type === "depth" && c.data.depth ? depthScale(c.data.depth) : 0);
+                            c.y = d.y;
+                            currentNodes.push(c);
+                        })
+                        if(d.depth < maxDepth){
+                            d.data.pathOnly = true;
+                            d.x = 0;
+                            d.y = 0;
+                            if(d.parent){
+                                currentNodes = currentNodes.filter((f) => f.data.name !== d.parent?.data.name);
+                            }
+                        } else {
+                            currentNodes = currentNodes.filter((f) => f.data.name !== d.data.name);
+                        }
+
+                        drawHierarchyForce(currentNodes);
+                    }
+                }
+
+            });
 
         nodesGroup
             .select(".nodeCircleIcon")
@@ -1424,8 +1315,15 @@ export const drawNonLinear = (
             .attr("stroke", "white")
             .attr("fill","white")
             .style("stroke-linejoin","round")
-            .attr("stroke-width",radiusRange[0] * 3)
-            .attr("id", (d) => `sPath${d.data.label}`);
+            .attr("stroke-width",(d) => radiusScale(d.data.value) * 1.5)
+            .attr("id", (d) => `sPath${d.data.name}`)
+            .on("click", (event, d) => {
+                const parentNode = d.parent;
+                if(parentNode){
+                    d.data.pathOnly = false;
+
+                }
+            });
         const dragstarted = () => {
             currentNodes.forEach((d) => {
                 // @ts-expect-error need to align types for simulation
@@ -1487,16 +1385,24 @@ export const drawNonLinear = (
         drillDownSimulation.tick(500);
 
 
+        const normalizeArray = (arr: [number, number][]) => {
+            return arr.length < 3
+                ? [...arr, ...Array(3 - arr.length).fill(arr[0])]
+                : arr;
+        }
         currentNodes.filter((f) => f.data.pathOnly === true)
             .forEach((d) => {
                 if(d.children){
-                    const points  = d.children.reduce((acc,entry) => {
+                    let points  = d.children.reduce((acc,entry) => {
                         acc.push([entry.x || 0, entry.y || 0])
                         return acc;
                     },[] as [number,number][]);
+                    if(points.length < 3){
+                        points = normalizeArray(points);
+                    }
                     const shapePath = d3.polygonHull(points);
                     if(shapePath){
-                        d3.select(`#sPath${d.data.label}`)
+                        d3.select(`#sPath${d.data.name}`)
                             .attr("d", `M${shapePath.join("L")}Z`)
                     }
                 }
