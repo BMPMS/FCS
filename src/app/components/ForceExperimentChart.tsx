@@ -3,28 +3,67 @@
 import type { FC } from 'react';
 import React, { useEffect, useRef } from 'react';
 import '@fortawesome/fontawesome-free/css/all.min.css';
+import '@fortawesome/fontawesome-pro/css/all.min.css';
+
 import * as d3 from 'd3';
-import {ChartLink, ChartNode, ForceExperimentChartProps} from "@/app/components/ForceExperimentChart_types";
+import {ChartLink, ChartNode, ForceExperimentChartProps, NodeChain} from "@/app/components/ForceExperimentChart_types";
 import {
     drawArrowDefs,
     drawForce,
     drawGroupTree, drawLegend, drawNonLinear,
-    drawRadioButtons,
+    drawRadioButtons, handleAnimationFlow,
     resetNodeAppearance,
     zoomToBounds
 } from "@/app/components/ForceExperimentChart_functions";
 import FloatingSearch from "@/app/components/FloatingSearch";
 
-export const CIRCLE_RADIUS = 8;
-export const COLORS = {lightgreen: "#a1d99b", lightblue: "#6baed6", midblue:"#2171b5", darkblue: "#08306b", red: "#cb181d", green: "#1a9850", grey:"#A0A0A0", midGrey:"#C0C0C0"}
+export const CIRCLE_RADIUS = 12;
+export const COLORS = {
+        lightgreen: "#a1d99b",
+        midgreen: "#41ab5d",
+        darkgreen: "#006d2c",
+        lightblue: "#6baed6",
+        orange: "#fd8d3c",
+        midblue: "#2171b5",
+        darkblue: "#08306b",
+        red: "#cb181d",
+        grey: "#A0A0A0",
+        lightgrey: "#E0E0E0",
+        midgrey: "#C0C0C0",
+        darkgrey: "#808080",
+        black: "#484848"
+    };
 
+export const NODEFLOW_COLORS = {
+        input: COLORS.midblue,
+        intermediate: COLORS.midgrey,
+        output: COLORS.orange,
+        successfulOutput: COLORS.orange,
+        failedOutput: COLORS.red,
+        successfulLink: COLORS.midgreen,
+        suppressedLink: COLORS.red,
+        link: COLORS.midgrey
+    };
+export const NODETYPE_ICONS = {
+        all: "\ue439",
+        any: "\ue438",
+        suppression: "\uf714",
+        layer: "\uf5fd",
+        network: "\uf126",
+        depth: "\uf3c5"
+    };
 
-export const NODEFLOW_COLORS = {actions: COLORS.midblue,input: COLORS.lightgreen, intermediate: COLORS.midGrey, successfulOutput: COLORS.green, failedOutput: COLORS.red};
-export const NODETYPE_ICONS = {expand: "\u002b",collapse:"\uf068",all: "", any:"\uf141", suppression: "\uf714", layer:"\uf5fd", network:"\uf1eb", depth:"\uf3c5"}
-const ForceExperimentChart: FC<ForceExperimentChartProps> = ({ containerClass,chartData,direction }) => {
+const ForceExperimentChart: FC<ForceExperimentChartProps> = ({
+      containerClass,
+      chartData,
+      direction,
+      flowMode}) => {
     const ref = useRef(null);
     const selectedNodes: React.RefObject<string[]> = useRef([]);
     const currentNodeNames: React.RefObject<string[]> = useRef([]);
+    const flowNodeChains: React.RefObject<NodeChain[]> = useRef([]);
+    const flowChartData: React.RefObject<{nodes: ChartNode[],links:ChartLink[] }> = useRef({nodes: [],links:[]});
+
     useEffect(() => {
 
         // svgs and sizing
@@ -38,6 +77,8 @@ const ForceExperimentChart: FC<ForceExperimentChartProps> = ({ containerClass,ch
         if (!containerNode) return;
         const {  clientHeight: svgHeight, clientWidth: svgWidth } = containerNode;
 
+        d3.select("#flowModeToggle")
+            .style("display",direction === "non-linear" ? "none" :"block");
 
         baseSvg.attr('width', svgWidth)
             .attr('height', svgHeight);
@@ -45,7 +86,7 @@ const ForceExperimentChart: FC<ForceExperimentChartProps> = ({ containerClass,ch
         baseSvg.select(".legendGroup")
             .attr("transform",`translate(120,${svgHeight - 35})`);
 
-        drawLegend(baseSvg);
+        drawLegend(baseSvg,direction,flowMode);
 
 
         // network radio group not visible for non-linear
@@ -55,7 +96,7 @@ const ForceExperimentChart: FC<ForceExperimentChartProps> = ({ containerClass,ch
 
          const zoom = d3
              .zoom<SVGSVGElement, unknown>()
-             .scaleExtent([0.1,1])
+             .scaleExtent([0.1,2])
              .on("zoom", (event) => {
                  const { x, y, k } = event.transform;
                  svg.attr("transform", `translate(${x},${y}) scale(${k})`);
@@ -77,7 +118,6 @@ const ForceExperimentChart: FC<ForceExperimentChartProps> = ({ containerClass,ch
          let currentNetwork = networks[0];
          let currentNetworkData = chartData.networks.find((f) => f.id === currentNetwork);
 
-
          d3.select("#chooseArchitecture")
             .selectAll("option")
             .data(architectures)
@@ -86,7 +126,6 @@ const ForceExperimentChart: FC<ForceExperimentChartProps> = ({ containerClass,ch
             .text((d) => d);
 
          const sideMargin = 100;
-
 
          const forcePosition = direction === "vertical" ? "forceX" : "forceY";
          const forceOpposite = direction === "vertical" ? "forceY" : "forceX";
@@ -101,16 +140,21 @@ const ForceExperimentChart: FC<ForceExperimentChartProps> = ({ containerClass,ch
         const callZoomToBounds = (currentNodes: ChartNode[]) => {
             zoomToBounds(currentNodes, baseSvg,svgWidth,svgHeight,zoom)
         }
+
+        const updateFlowChartData = (currentNodes: ChartNode[], currentLinks: ChartLink[]) => {
+            flowChartData.current = {nodes: currentNodes,links: currentLinks};
+        }
          const radioButtonChange = (newNetwork: string) => {
              // not applicable to non-linear
              selectedNodes.current = [];
+             flowNodeChains.current = [];
              if(newNetwork === "All"){
                  currentNodeNames.current = [];
-                 drawForce(svg,[], [], simulation,direction,selectedNodes,containerClass,callZoomToBounds);
+                 drawForce(svg,[], [], simulation,direction,selectedNodes,containerClass,callZoomToBounds,flowMode,flowNodeChains,updateFlowChartData);
                  resetZoom();
-                 drawGroupTree(baseSvg, currentRadioGroup,chartData,svgWidth,svgHeight, false, direction,containerClass,simulation,selectedNodes,resetNodeNames, callZoomToBounds);
+                 drawGroupTree(baseSvg, currentRadioGroup,chartData,svgWidth,svgHeight, false, direction,containerClass,simulation,selectedNodes,resetNodeNames, callZoomToBounds,flowMode,flowNodeChains,updateFlowChartData);
              } else {
-                 drawGroupTree(baseSvg, currentRadioGroup,chartData,svgWidth,svgHeight, true, direction,containerClass,simulation,selectedNodes,resetNodeNames,callZoomToBounds);
+                 drawGroupTree(baseSvg, currentRadioGroup,chartData,svgWidth,svgHeight, true, direction,containerClass,simulation,selectedNodes,resetNodeNames,callZoomToBounds,flowMode,flowNodeChains,updateFlowChartData);
                  currentNetworkData = chartData.networks.find((f) => f.id === newNetwork);
                  if(currentNetworkData){
                      currentNetwork = newNetwork;
@@ -121,7 +165,7 @@ const ForceExperimentChart: FC<ForceExperimentChartProps> = ({ containerClass,ch
                          positionScale.domain(depthExtent);
                      }
                      clearTreePosition(nodes);
-                     drawForce(svg,nodes, links, simulation,direction,selectedNodes,containerClass,callZoomToBounds);
+                     drawForce(svg,nodes, links, simulation,direction,selectedNodes,containerClass,callZoomToBounds,flowMode,flowNodeChains,updateFlowChartData);
                  }
              }
 
@@ -136,12 +180,12 @@ const ForceExperimentChart: FC<ForceExperimentChartProps> = ({ containerClass,ch
                     networks = currentRadioGroup.layers.map((m) => m.network);
                     currentNetwork = networks[0];
                     if(direction === "non-linear"){
-                        drawGroupTree(baseSvg,currentRadioGroup,chartData,svgWidth,svgHeight,true, direction,containerClass,simulation,selectedNodes,resetNodeNames,callZoomToBounds)
-                        drawForce(svg,[], [], simulation,direction,selectedNodes,containerClass,callZoomToBounds);
+                        drawGroupTree(baseSvg,currentRadioGroup,chartData,svgWidth,svgHeight,true, direction,containerClass,simulation,selectedNodes,resetNodeNames,callZoomToBounds,flowMode,flowNodeChains,updateFlowChartData)
+                        drawForce(svg,[], [], simulation,direction,selectedNodes,containerClass,callZoomToBounds,flowMode,flowNodeChains,updateFlowChartData);
                         resetZoom();
-                        drawNonLinear(svg,currentRadioGroup,chartData,svgWidth,svgHeight);
+                        drawNonLinear(svg,currentRadioGroup,chartData,svgWidth,svgHeight,containerClass);
                     } else {
-                        drawGroupTree(baseSvg,currentRadioGroup,chartData,svgWidth,svgHeight,true, direction,containerClass,simulation,selectedNodes,resetNodeNames,callZoomToBounds)
+                        drawGroupTree(baseSvg,currentRadioGroup,chartData,svgWidth,svgHeight,true, direction,containerClass,simulation,selectedNodes,resetNodeNames,callZoomToBounds,flowMode,flowNodeChains,updateFlowChartData)
                         drawRadioButtons(svg, networks,currentNetwork,radioButtonChange);
                         radioButtonChange(currentNetwork);
                     }
@@ -185,20 +229,31 @@ const ForceExperimentChart: FC<ForceExperimentChartProps> = ({ containerClass,ch
                positionScale.domain(depthExtent);
            }
            if(direction === "non-linear"){
-               drawGroupTree(baseSvg,currentRadioGroup,chartData,svgWidth,svgHeight,true, direction,containerClass,simulation,selectedNodes,resetNodeNames,callZoomToBounds)
-               drawForce(svg,[], [], simulation,direction,selectedNodes,containerClass,callZoomToBounds);
+               drawGroupTree(baseSvg,currentRadioGroup,chartData,svgWidth,svgHeight,true, direction,containerClass,simulation,selectedNodes,resetNodeNames,callZoomToBounds,flowMode,flowNodeChains,updateFlowChartData)
+               drawForce(svg,[], [], simulation,direction,selectedNodes,containerClass,callZoomToBounds,flowMode,flowNodeChains,updateFlowChartData);
                resetZoom();
-               drawNonLinear(svg,currentRadioGroup,chartData,svgWidth,svgHeight);
+               drawNonLinear(svg,currentRadioGroup,chartData,svgWidth,svgHeight,containerClass);
            } else {
-               drawGroupTree(baseSvg,currentRadioGroup,chartData,svgWidth,svgHeight,true,direction,containerClass,simulation,selectedNodes,resetNodeNames,callZoomToBounds)
+               drawGroupTree(baseSvg,currentRadioGroup,chartData,svgWidth,svgHeight,true,direction,containerClass,simulation,selectedNodes,resetNodeNames,callZoomToBounds,flowMode,flowNodeChains,updateFlowChartData)
                clearTreePosition(nodes);
-               drawForce(svg,nodes, links, simulation,direction,selectedNodes,containerClass,callZoomToBounds);
+               drawForce(svg,nodes, links, simulation,direction,selectedNodes,containerClass,callZoomToBounds,flowMode,flowNodeChains,updateFlowChartData);
                zoomToBounds(nodes, baseSvg,svgWidth,svgHeight,zoom);
            }
          }
+         if(flowMode){
+             d3.select(".flowStart")
+                 .on("click", () => {
+                     const currentFlowData = flowChartData.current;
+                     const {nodes, links} = currentFlowData;
+                     const transitionTime = 500;
+                     if(selectedNodes.current.length > 0){
+                         handleAnimationFlow(svg,selectedNodes.current, flowNodeChains.current,nodes,links,transitionTime,containerClass)
+                     }
+                 })
+         }
 
 
-    }, [containerClass, chartData, direction]);
+    }, [containerClass, chartData, direction,flowMode]);
 
     const handleSelectedNodes = (selected: string[]): void => {
         selectedNodes.current = selected;
@@ -210,27 +265,20 @@ const ForceExperimentChart: FC<ForceExperimentChartProps> = ({ containerClass,ch
     return (
         <>
         <FloatingSearch entriesRef={currentNodeNames} onSelect={handleSelectedNodes}/>
+        {flowMode && (
+            <button className={"flowStart absolute z-50 top-2 px-1 py-0.5 mt-2 text-sm bg-gray-500 text-white rounded hover:bg-gray-600 transition"}>
+                Start Flow
+            </button>
+        )}
         <svg className={"noselect"} ref={ref}>
-            <defs>
-                <marker id={`arrowStart${containerClass}`}>
-                    <path id={"arrowPathStart"}/>
-                </marker>
-                <marker id={`arrowEnd${containerClass}`}>
-                    <path id={"arrowPathEnd"}/>
-                </marker>
-                <marker id={`arrowNodeStart${containerClass}`}>
-                    <path id={"arrowNodePathStart"}/>
-                </marker>
-                <marker id={`arrowNodeEnd${containerClass}`}>
-                    <path id={"arrowNodePathEnd"}/>
-                </marker>
+            <defs className={"arrowDefs"}>
             </defs>
-            <g className={"legendGroup"}/>
             <g className={"chartSvg"}>
+                <g className={"treeGroup"}/>
                 <g className={"linkGroup"}/>
                 <g className={"nodeGroup"}/>
-                <g className={"treeGroup"}/>
             </g>
+            <g className={"legendGroup"}/>
         </svg></>
             );
             };

@@ -12,30 +12,37 @@ import OFON from "@/app/data/OFON.json";
 import OIN from "@/app/data/OIN.json";
 import PPN from "@/app/data/PPN.json";
 import PPON from "@/app/data/PPON.json";
-import {ChartData, ChartLink, ChartNode, DataNode} from "@/app/components/ForceExperimentChart_types";
+import {ChartData, ChartLink, ChartNode, DataLink, DataNode} from "@/app/components/ForceExperimentChart_types";
 import {useState} from "react";
 import {getLinkId} from "@/app/components/ForceExperimentChart_functions";
 export default  function Home() {
- const addProps = (networkData: {network: string, network_desc: string, nodes: DataNode[], links: ChartLink[] }) => {
+ const addProps = (networkData: {network: string, network_desc: string, nodes: DataNode[], links: DataLink[] }) => {
 
 
      const {nodes,links, network, network_desc} = networkData;
-     links.map((m) => {
-         m.source = `${getLinkId(m,"source").split("-")[0]}-${network}`;
-         m.target = `${getLinkId(m,"target").split("-")[0]}-${network}`;
-     })
+     const allLinks = links.reduce((acc, entry,i) => {
+         const source = `${entry.source.split("-")[0]}-${network}`;
+         const target = `${entry.target.split("-")[0]}-${network}`;
+         acc.push({
+             source,
+             target,
+             type: entry.type,
+             id: `${network}-${i}`
+         })
+         return acc;
+     },[] as ChartLink[])
 
-     if(!nodes.some((s) => s.nodeDepth === undefined)) return {network, network_desc, nodes: nodes as ChartNode[], links};;
+     if(!nodes.some((s) => s.nodeDepth === undefined)) return {network, network_desc, nodes: nodes as ChartNode[], links: allLinks};;
 
-     let sourceNodes = links
-        .filter((f) => !links.some((s) => s.target === f.source));
+     let sourceNodes = allLinks
+        .filter((f) => !allLinks.some((s) => s.target === f.source));
      const sourceNodeIds = [... new Set(sourceNodes.map((m) => m.source))];
      let targetNodeIds = [... new Set(sourceNodes.map((m) => m.target))];
      let currentDepth = 1;
      nodes.map((m) => {
          const nodeId  = `${m.node}-${network}`
          m.id = nodeId;
-         if(!links.some((s) => getLinkId(s, "source") === nodeId || getLinkId(s,"target") === nodeId)){
+         if(!allLinks.some((s) => getLinkId(s, "source") === nodeId || getLinkId(s,"target") === nodeId)){
              m.nodeDepth = 0;
          }
         if(sourceNodeIds.includes(nodeId)){
@@ -52,7 +59,7 @@ export default  function Home() {
 
     while(nodes.some((s) => s.nodeDepth === undefined)){
 
-         sourceNodes = links
+         sourceNodes = allLinks
              .filter((f) => targetNodeIds.includes(getLinkId(f,"source")));
         targetNodeIds = [... new Set(sourceNodes.map((m) => getLinkId(m,"target")))];
          nodes.map((m) => {
@@ -64,15 +71,22 @@ export default  function Home() {
     }
 
 
-     return {network, network_desc, nodes: nodes as ChartNode[], links};
+     return {network, network_desc, nodes: nodes as ChartNode[], links: allLinks};
  }
 
     const [direction, setDirection] = useState('horizontal');
+    const [flowMode, setFlowMode] = useState<boolean>(false);
 
     const handleDirectionChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-        setDirection(event.target.value);
+        if(event.target.value === 'non-linear'){
+            setFlowMode(false);
+        }
+       setDirection(event.target.value);
     };
-
+    const handleFlowMode = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const newFlow = event.target.value === "true";
+        setFlowMode(newFlow);
+    };
 
 
  const chartData: ChartData =  {
@@ -95,6 +109,27 @@ export default  function Home() {
           <div>
            <div className="items-start h-[60px] w-full bg-gray-300 flex justify-between  p-5">
                <select id="chooseArchitecture"></select>
+               <div id="flowModeToggle" className=" flex items-center space-x-0 w-fit p-0 w-[100px]">
+                   Flow Mode
+                   <input
+                       className="ml-2 mr-2"
+                       type="radio"
+                       id="flowMode"
+                       name="flowMode"
+                       value="true"
+                       checked={flowMode}
+                       onChange={handleFlowMode}
+                   />
+                   <input
+                       className="ml-2 mr-2"
+                       type="radio"
+                       id="flowMode"
+                       name="flowMode"
+                       value="false"
+                       checked={!flowMode}
+                       onChange={handleFlowMode}
+                   />
+               </div>
                <div className=" w-[300px]">
                    <input
                        className="ml-2 mr-2"
@@ -134,6 +169,7 @@ export default  function Home() {
                   containerClass={"d3Chart"}
                   chartData={chartData}
                   direction = {direction}
+                  flowMode={flowMode}
               />
           </div>
           </div>

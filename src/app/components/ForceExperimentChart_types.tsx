@@ -12,12 +12,18 @@ export interface DataNode {
     extraY?:number;
 }
 
+export interface DataLink {
+    source: string ;
+    target: string ;
+    type: string;
+}
+
 export interface HierarchyNode extends d3.SimulationNodeDatum  {
     name: string;
     type: string;
     label: string;
     value: number;
-    pathOnly?: boolean;
+    fail?: boolean;
     depth?: number;
     data?: ChartNode;
     children?:HierarchyNode[];
@@ -32,6 +38,7 @@ export interface ChartNode extends d3.SimulationNodeDatum {
     nodeDepth: number;
     extraX: number;
     extraY: number;
+    fail?: boolean;
     network?: string;
     oppositePos?:number;
     bounds?: {x: number, widthOrHeight: number, opposite: number, top: number};
@@ -49,6 +56,7 @@ export interface ChartLink extends d3.SimulationLinkDatum<ChartNode>{
     source: string | ChartNode;
     target: string | ChartNode;
     type: string;
+    id: string;
 }
 
 type ArcRoute = {
@@ -91,4 +99,15 @@ export interface ForceExperimentChartProps {
     chartData: ChartData;
     containerClass: string;
     direction: string;
+    flowMode: boolean;
+}
+
+export  type NodeChain = {
+    type: string;
+    id: string;
+    index: number;
+    source: string;
+    originNode: string;
+    linkOrNodeType: string;
+    target: string;
 }
