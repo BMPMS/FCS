@@ -13,7 +13,7 @@ import {
     NODEFLOW_COLORS,
     NODETYPE_ICONS
 } from "@/app/components/ForceExperimentChart";
-import {HierarchyRectangularNode} from "d3";
+import {HierarchyRectangularNode, maxIndex} from "d3";
 import Graph from 'graphology';
 import {Attributes} from 'graphology-types'
 import React from "react";
@@ -68,12 +68,18 @@ const animateNodes = (
 
 const resetAnimationEncoding = (
     svg:d3.Selection<d3.BaseType, unknown, HTMLElement, unknown>,
-    chartNodes: ChartNode[]
+    chartNodes: ChartNode[],
+    containerClass: string
 ) => {
     svg.selectAll(".linkAnimatePath").attr("stroke-opacity", 0);
     svg
         .selectAll<SVGCircleElement,ChartNode>(".nodeCircle")
         .attr("fill", (n) => getNodeCircleFill(n,  []));
+
+    svg.selectAll<SVGPathElement,ChartLink>(".linkLine")
+        .attr("stroke","transparent")
+        .attr("marker-start", (d) => getMarker(d,"start","",containerClass))
+        .attr("marker-end", (d) => getMarker(d,"end","",containerClass))
 
     chartNodes.forEach((m) => (m.fail = false));
 }
@@ -223,6 +229,7 @@ const animatePaths = (
     animatePaths: NodeChain[],
     transitionTime: number,
     containerClass: string) => {
+
     svg
         .selectAll<SVGPathElement,ChartLink>(".linkLine")
         .filter((f) => animatePaths.some((s) => s.id === f.id))
@@ -257,15 +264,18 @@ const animatePaths = (
                         .attr("stroke-dasharray", (p) =>
                             p.type === "suppress" ? "4,4" : ""
                         );
-
-                    d3.select<SVGPathElement,ChartLink>(objects[0])
-                        .attr("stroke","transparent")
-                        .attr("marker-start", (d) => getMarker(d,"start","Green",containerClass))
-                        .attr("marker-end", (d) => getMarker(d,"end","Green",containerClass))
-
                 }
             }
         });
+
+    svg.selectAll<SVGPathElement,ChartLink>(".linkLine")
+        .filter((f) => animatePaths.some((s) => s.id === f.id))
+        .transition()
+        .delay(transitionTime)
+        .duration(100)
+        .attr("stroke","transparent")
+        .attr("marker-start", (d) => getMarker(d,"start",d.type === "suppress" ? "Red" : "Green",containerClass))
+        .attr("marker-end", (d) => getMarker(d,"end",d.type === "suppress" ? "Red" : "Green",containerClass))
 }
 const addChainAnimationNodes = (chain: string[], nodes: ChartNode[], links: ChartLink[], nodeId:string, currentFlowChain: NodeChain[]) => {
 
@@ -396,6 +406,15 @@ const markerIds = [
     "arrowNLNodeStart",
     "arrowNLNodeEnd"
 ]
+
+const getRefX = (markerId: string, markerWidthHeight: number) => {
+    if(markerId.includes("NL")){
+        if(markerId.includes("Start")) return 2;
+        return 8.5
+    }
+    if(markerId.includes("Start"))return -(markerWidthHeight + 0.5);
+    return markerWidthHeight + 0.5;
+}
 const switchArrowDefs = (
     baseSvg: d3.Selection<HTMLElement, unknown,null, undefined>,
         containerClass: string,
@@ -403,15 +422,10 @@ const switchArrowDefs = (
     const markerWidthHeight =  Math.max(radius + 8, 8);
 
     markerIds.forEach((markerIdStart) => {
-        baseSvg.select(`#${markerIdStart}${containerClass}`)
-            .attr("markerWidth", markerWidthHeight)
-            .attr("markerHeight", markerWidthHeight)
-            .attr("refX", -(markerWidthHeight + 0.5));
-
-        baseSvg.select(`#${markerIdStart}${containerClass}`)
-            .attr("markerWidth", markerWidthHeight)
-            .attr("markerHeight", markerWidthHeight)
-            .attr("refX", markerWidthHeight + 0.5);
+        baseSvg.selectAll<SVGMarkerElement,string>(`#${markerIdStart}${containerClass}`)
+            .attr("markerWidth", (d) => d.includes("NL") ?  10 : markerWidthHeight)
+            .attr("markerHeight", (d) => d.includes("NL") ?  10 : markerWidthHeight)
+            .attr("refX", (d) => getRefX(d,markerWidthHeight));
     })
 
 
@@ -676,7 +690,7 @@ export const drawForce = (
         if(nodeSelection.includes(d.id)){
             return 1;
         }
-        return 0.4;
+        return 0.2;
     }
 
 
@@ -799,10 +813,11 @@ export const drawForce = (
 
         nodesGroup
             .on("mouseover", (event, d) => {
-                const matchingLinks = links.filter((f) => getLinkId(f,"source") === d.id || getLinkId(f,"target") === d.id);
+                const nodeChain= getNodeChain(d.id,nodes,links);
+                const matchingLinks = links.filter((f) =>
+                    nodeChain.includes(getLinkId(f,"source")) && nodeChain.includes(getLinkId(f,"target")));
                 const linkIndices = matchingLinks.map((m) => m.index || -1);
-                const oppositeNodeIds = matchingLinks.map((m) => getLinkId(m,"source") === d.id ? getLinkId(m, "target") : getLinkId(m,"source"))
-                const tempSelected = flowMode ? [d.id] : selectedNodes.current.concat([d.id]).concat(oppositeNodeIds);
+                 const tempSelected = nodeChain;
                 svg.selectAll<SVGTextElement | SVGRectElement, ChartNode>(".nodeLabelItem")
                     .attr("display", (n) => getNodeDisplay(n,tempSelected));
                 svg.selectAll<SVGTextElement | SVGRectElement, ChartNode>(".nodeCircle")
@@ -813,14 +828,12 @@ export const drawForce = (
                 d3.select(event.currentTarget).raise();
              })
             .on("mouseout", () => {
-                if(!flowMode){
-                    svg.selectAll<SVGTextElement | SVGRectElement, ChartNode>(".nodeLabelItem")
-                        .attr("display",(n) => getNodeDisplay(n,selectedNodes.current));
-                    svg.selectAll<SVGTextElement | SVGRectElement, ChartNode>(".nodeCircle")
-                        .attr("opacity", (n) => getNodeOpacity(n,selectedNodes.current,false));
-                    svg.selectAll<SVGLineElement, ChartLink>(".linkLine")
-                        .attr("opacity", (l) => getLinkOpacity(l, [],false))
-                }
+                svg.selectAll<SVGTextElement | SVGRectElement, ChartNode>(".nodeLabelItem")
+                    .attr("display",(n) => getNodeDisplay(n,selectedNodes.current));
+                svg.selectAll<SVGTextElement | SVGRectElement, ChartNode>(".nodeCircle")
+                    .attr("opacity", (n) => getNodeOpacity(n,selectedNodes.current,false));
+                svg.selectAll<SVGLineElement, ChartLink>(".linkLine")
+                    .attr("opacity", (l) => getLinkOpacity(l, [],false))
             })
             .on("click", (event, d) => {
                 if(flowMode && d.nodeDepth > 1) return;
@@ -828,13 +841,13 @@ export const drawForce = (
                     if(flowMode){
                         selectedNodes.current = selectedNodes.current.filter((f) => f !== d.id);
                         flowNodeChains.current = flowNodeChains.current.filter((f) => f.originNode !== d.id);
-                        resetAnimationEncoding(svg,nodes);
+                        resetAnimationEncoding(svg,nodes,containerClass);
                     } else {
                         selectedNodes.current = [];
                     }
                 } else {
                     if(flowMode){
-                        resetAnimationEncoding(svg,nodes);
+                        resetAnimationEncoding(svg,nodes,containerClass);
                         selectedNodes.current.push(d.id);
                         const flowNodeChain = getFlowNodeChain(d.id, nodes, links,false);
                         const newSelectedNodeChain = addChainAnimationNodes(flowNodeChain,chartNodes,chartLinks,d.id, flowNodeChains.current)
@@ -908,8 +921,8 @@ export const drawForce = (
         }
 
         const getDy = (d: ChartNode) => {
-                if(d.nodeDepth <= maxDepth/2) return -(circleRadius * 1.5);
-                if(d.nodeDepth > maxDepth/2) return circleRadius * 2.3;
+                if(d.nodeDepth <= maxDepth/2) return -(circleRadius * 1.25);
+                if(d.nodeDepth > maxDepth/2) return circleRadius * 1.65;
 
             return 2;
         }
@@ -927,7 +940,7 @@ export const drawForce = (
             .attr("display",(d) => getNodeDisplay(d, selectedNodes.current))
             .attr("rx",2)
             .attr("ry",2)
-            .attr("width", (d) => measureWidth(d.node, 6.5))
+            .attr("width", (d) => measureWidth(d.node, 8.5))
             .attr("height", 6)
             .attr("x", (d) => {
                 const dx = getDx(d);
@@ -945,7 +958,7 @@ export const drawForce = (
             .attr("pointer-events","none")
             .attr("display",(d) => getNodeDisplay(d, selectedNodes.current))
             .attr("text-anchor",getTextAnchor)
-            .attr("font-size",6)
+            .attr("font-size",8)
             .attr("dy", getDy)
             .attr("dx",getDx)
             .text((d) => d.node);
@@ -1001,6 +1014,7 @@ export const drawForce = (
 
 
     svg.selectAll<SVGPathElement,ChartLink>(".linkLine")
+        .attr("stroke",  (d) => d.type === "architecture" ? "#D0D0D0": "#808080")
         .attr("marker-start", (d) => getMarker(d,"start","",containerClass))
         .attr("marker-end", (d) => getMarker(d,"end","",containerClass))
 
@@ -1019,9 +1033,9 @@ export const  zoomToBounds = (
     if (xExtent0 !== undefined && xExtent1 !== undefined && yExtent0 !== undefined && yExtent1 !== undefined) {
         const xWidth = xExtent1 - xExtent0 ;
         const yWidth = yExtent1 - yExtent0;
-        const translateX =  -(xExtent0 + xExtent1) / 2;
+        const translateX =   -(xExtent0 + xExtent1) / 2;
         const translateY =  -(yExtent0 + yExtent1) / 2;
-        const margin = 20;
+        const margin = 60;
 
         const fitToScale = 0.95 / Math.max(xWidth / (width - margin), yWidth / (height - margin));
 
@@ -1530,7 +1544,6 @@ const trimPathToRadius = (
     // Ensure radii are within bounds
     const trimStart = Math.min(sourceRadius, totalLength);
     const trimEnd = Math.max(totalLength - targetRadius, trimStart);
-
     const startPoint = tempPath.getPointAtLength(trimStart);
     const endPoint = tempPath.getPointAtLength(trimEnd);
 
@@ -1616,9 +1629,56 @@ export const drawNonLinear = (
     const drawHierarchyForce = (currentNodes: d3.HierarchyNode<HierarchyNode>[]) => {
 
 
+
         const maxDepth = 3;
 
         const fullSelectedNodeChain = [... new Set(selectedNodes.map((m) => m[1]).flat())];
+
+        d3.select(".expandChain")
+            .style("visibility", selectedNodes.length === 0 ? "hidden" : "visible")
+            .on("click",() => {
+                const nodesToExpand = currentNodes.filter((f) => f.depth !== maxDepth && f.descendants().some((s) => fullSelectedNodeChain.includes(s.data.name)))
+                const allAncestors = nodesToExpand.reduce((acc, entry) => {
+                    const leafNodes = entry.descendants().filter((f) => fullSelectedNodeChain.includes(f.data.name));
+                    const ancestorIds = leafNodes
+                        .map((m) => m.ancestors()
+                            .filter((f) => f.depth !== maxDepth)
+                            .map((a) => a.data.name)).flat();
+                    acc = acc.concat(ancestorIds);
+                    return acc;
+                },[] as string[]);
+                const ancestorsSet = [...new Set(allAncestors)];
+                const topLevelCurrentNodes = currentNodes.filter((f) => ancestorsSet.includes(f.data.name));
+                topLevelCurrentNodes.forEach((d) => {
+                    const descendants = d.descendants()
+                        .filter((f) => f.depth !== maxDepth)
+                        .sort((a,b) => d3.ascending(a.depth,b.depth));
+                    const notAncestors = descendants.filter((f) => !ancestorsSet.includes(f.data.name));
+                    notAncestors.forEach((n) => {
+                        const ancestorWithPositions = n.ancestors().find((f) => f.x);
+                        if(ancestorWithPositions){
+                            n.x = ancestorWithPositions.x;
+                            n.y = ancestorWithPositions.y;
+                        }
+                        currentNodes.push(n);
+                    })
+                    const oneFromLast = descendants.filter((f) => d.depth === maxDepth - 1);
+                    oneFromLast.forEach((l) => {
+                        if(l.children){
+                            l.children.forEach((c) => {
+                                const ancestorWithPositions = c.ancestors().find((f) => f.x);
+                                if(ancestorWithPositions){
+                                    c.x = ancestorWithPositions.x;
+                                    c.y = ancestorWithPositions.y;
+                                }
+                                currentNodes.push(c)
+                            })
+                        }
+                    })
+                })
+                currentNodes = currentNodes.filter((f) => !ancestorsSet.includes(f.data.name));
+                drawHierarchyForce(currentNodes);
+            });
 
         const nodesToHighlight = currentNodes.reduce((acc, node) => {
             if(node.depth === maxDepth && fullSelectedNodeChain.includes(node.data.name)){
@@ -1639,7 +1699,7 @@ export const drawNonLinear = (
             nodesToHighlight.includes(getLinkId(link,"target")) ? 1 : 0);
 
         const getNodeOpacity = (node: d3.HierarchyNode<HierarchyNode>) =>
-           nodesToHighlight.length === 0 ||  nodesToHighlight.includes(node.data.name) ? 1 : 0.2;
+            nodesToHighlight.length === 0 ||  nodesToHighlight.includes(node.data.name) ? 1 : 0.2;
 
 
         // layer -> network -> depth -> node
@@ -1659,6 +1719,8 @@ export const drawNonLinear = (
             });
 
         const resetNodeCircles = () => {
+            d3.selectAll<SVGGElement,d3.HierarchyNode<HierarchyNode>>(".nodesGroup").attr("opacity",getNodeOpacity);
+            d3.selectAll<SVGGElement,HierarchyLink>(".linksGroup").attr("opacity",getLinkOpacity);
             d3.selectAll<SVGCircleElement,d3.HierarchyNode<HierarchyNode>>(".nodeCircle")
                 .attr("fill",(n) => n.data.data ? getNodeCircleFill(n.data.data, flowModeSelectedNodes) : "white");
 
@@ -1671,18 +1733,28 @@ export const drawNonLinear = (
             .attr("opacity",getNodeOpacity)
             .attr("cursor","pointer")
             .on("mouseover",(event, d) => {
-                resetNodeCircles();
-                const highlightFill = d.depth === maxDepth ? "white" : "#E0E0E0";
-                d3.select(event.currentTarget).raise();
-                d3.select(event.currentTarget)
-                    .select(".nodeCircle")
-                    .attr("fill",highlightFill);
+                if(d.depth === maxDepth){
+                    const chain = getHierarchyNodeChain(d.data.name,allChildNodes || [],allNodesLinks);
+                    const chainNodeIds = currentNodes
+                        .filter((f) => chain.includes(f.data.name) || f.descendants().some((s) => chain.includes(s.data.name)))
+                        .map((m) => m.data.name);
+                    svg.selectAll<SVGGElement,d3.HierarchyNode<HierarchyNode>>(".nodesGroup")
+                        .attr("opacity", (n) =>  chainNodeIds.includes(n.data.name) ? 1 : 0.2);
+                    svg.selectAll<SVGGElement,HierarchyLink>(".linksGroup")
+                        .attr("opacity", (l) =>  chainNodeIds.includes(getLinkId(l,"source")) && chainNodeIds.includes(getLinkId(l,"target"))  ? 1 : 0);
 
+                } else {
+                    const highlightFill = d.depth === maxDepth ? "white" : "#E0E0E0";
+                    d3.select(event.currentTarget).raise();
+                    d3.select(event.currentTarget)
+                        .select(".nodeCircle")
+                        .attr("fill",highlightFill);
+                }
                 d3.select(event.currentTarget)
                     .select(".nodeLabel")
                     .attr("visibility","visible");
             })
-            .on("mouseout", () => {
+            .on("mouseout", (event, d) => {
                 resetNodeCircles();
             })
             .on("click", (event, d) => {
@@ -1774,8 +1846,8 @@ export const drawNonLinear = (
             if(typeof link.source === "string" || typeof link.target === "string") return "none";
             const sourceDepth = link.source.depth;
             const targetDepth = link.target.depth;
-            if(sourceDepth < targetDepth) return "out";
-            return "in"
+            if(sourceDepth < targetDepth) return "in";
+            return "out"
         }
         linksGroup
             .select(".linkArrowPath")

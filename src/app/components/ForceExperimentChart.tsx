@@ -270,6 +270,11 @@ const ForceExperimentChart: FC<ForceExperimentChartProps> = ({
                 Start Flow
             </button>
         )}
+        {direction==="non-linear" && (
+            <button style={{ visibility: "hidden" }} className={"expandChain absolute z-50 top-2 px-1 py-0.5 mt-2 text-sm bg-gray-500 text-white rounded hover:bg-gray-600 transition"}>
+                Expand Chain
+            </button>
+        )}
         <svg className={"noselect"} ref={ref}>
             <defs className={"arrowDefs"}>
             </defs>
